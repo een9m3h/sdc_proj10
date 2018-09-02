@@ -1,0 +1,7 @@
+.vscode
+build
+Ipopt*
+ipopt*
+*.csv
+tags
+.editorconfig
