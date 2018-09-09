@@ -7,7 +7,7 @@ using CppAD::AD;
 
 // TODO: Set the timestep length and duration
 size_t N = 10;
-double dt = 0.1;
+double dt = 0.2;  // sampling period increased for act latency
 
 size_t x_start 		= 0;
 size_t y_start 		= x_start + N;
@@ -18,14 +18,14 @@ size_t epsi_start 	= cte_start + N;
 size_t delta_start  = epsi_start + N;
 size_t a_start 		= delta_start + N - 1;
 
-double cte_weight = 1000; // weight for not having a low cross track error
-double epsi_weight = 1000; // for having an angle error
+double cte_weight = 100; // weight for not having a low cross track error
+double epsi_weight = 100; // for having an angle error
 double speed_weight = 1; // not following the speed limit
-double steer_use_weight = 10; // for steering the car
-double a_use_weight = 10; // using the throttle
-double steer_change_weight = 100; // having sharp / large steer angles between steps
+double steer_use_weight = 1; // for steering the car
+double a_use_weight = 1; // using the throttle
+double steer_change_weight = 10; // having sharp / large steer angles between steps
 double a_change_weight = 10; // accelerating or braking fast
-double speed_vs_steer_weight = 100;
+double speed_vs_steer_weight = 90;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -117,7 +117,7 @@ class FG_eval {
 		// Only consider the actuation at time t.
 		AD<double> delta0 = vars[delta_start + t - 1];
 		AD<double> a0 = vars[a_start + t - 1];
-
+		
 		AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
 		AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0, 2));
 

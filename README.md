@@ -3,6 +3,46 @@ Self-Driving Car Engineer Nanodegree Program
 
 ---
 
+## Introduction
+
+In this project you'll implement Model Predictive Control to drive the car around the track. 
+Udacity-provided [simulator](https://github.com/udacity/self-driving-car-sim/releases) which feedsback various state information and 
+takes acutator commands in the form of steering angle and throttle commands.
+Additionally, there's a 100 millisecond latency between actuations commands on top of the connection latency.
+
+## Rubric Points
+
+- **The Model**: *Student describes their model in detail. This includes the state, actuators and update equations.*
+
+The kinematic model describes state information such as x & y coordinates in meters, orientation angle (psi), velocity (v), 
+cross-track error (cte) and psi error (epsi). Controller outputs drive the actuators which control acceleration (throttle) and steering angle (delta). 
+The model uses the previous state information and actuations from the previous timestep to calculate the state for the next timestep 
+using the equations below:
+
+![MPC equations](./MPC_equations.png)
+
+- **Timestep Length and Elapsed Duration (N & dt)**: *Student discusses the reasoning behind the chosen N 
+(timestep length) and dt (elapsed duration between timesteps) values. Additionally the student details the 
+previous values tried.*
+
+The values chosen for N and dt are 10 and 0.2, respectively. 
+When setting the latency of the actuator reponse to zero the values chosen for N and dt are 10 and 0.1.
+The incresed samping period helped compensate for the actuator latency in the MPC optimizaqtion of control stimuli.
+
+
+- **Polynomial Fitting and MPC Preprocessing**: *A polynomial is fitted to waypoints. If the student preprocesses waypoints, 
+the vehicle state, and/or actuators prior to the MPC procedure it is described.*
+
+The waypoints are preprocessed by translating them to from the map co-ordinate reference to the vehicle's co-ordinate reference.
+Since the calaculations are repeated at each sampling point without history the vehicle's x and y coordinates can be 
+represeneted as (0, 0) with zero orientation angle. This simplifies CTE and psi error calculations and the projection of lines in the sim.
+
+- **Model Predictive Control with Latency**: *The student implements Model Predictive Control that handles a 
+100 millisecond latency. Student provides details on how they deal with latency.*
+
+Two approaches were taken. Firstly, increaseing the sampling period in the MPC calaculations. 
+Increasing cost for actuator deltas and steering vs. speed treadoff costs.
+
 ## Dependencies
 
 * cmake >= 3.5
