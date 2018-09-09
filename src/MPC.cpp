@@ -6,8 +6,8 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-size_t N = 25 ;
-double dt = 0.05 ;
+size_t N = 10;
+double dt = 0.1;
 
 size_t x_start 		= 0;
 size_t y_start 		= x_start + N;
@@ -17,6 +17,15 @@ size_t cte_start 	= v_start + N;
 size_t epsi_start 	= cte_start + N;
 size_t delta_start  = epsi_start + N;
 size_t a_start 		= delta_start + N - 1;
+
+double cte_weight = 1000; // weight for not having a low cross track error
+double epsi_weight = 1000; // for having an angle error
+double speed_weight = 1; // not following the speed limit
+double steer_use_weight = 10; // for steering the car
+double a_use_weight = 10; // using the throttle
+double steer_change_weight = 100; // having sharp / large steer angles between steps
+double a_change_weight = 10; // accelerating or braking fast
+double speed_vs_steer_weight = 100;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -32,7 +41,7 @@ const double Lf = 2.67;
 
 // Both the reference cross track and orientation errors are 0.
 // The reference velocity is set to 40 mph.
-double ref_v = 1.0;
+double ref_v = 40.0;
 
 class FG_eval {
  public:
@@ -47,22 +56,26 @@ class FG_eval {
     // NOTE: You'll probably go back and forth between this function and
     // the Solver function below.
 	
+	fg[0] = 0;
+	
 	// The part of the cost based on the reference state.
     for (int t = 0; t < N; t++) {
 		//cross-track error
-		fg[0] += CppAD::pow(vars[cte_start + t], 2);
+		fg[0] += cte_weight*CppAD::pow(vars[cte_start + t], 2);
 		//heading error
-		fg[0] += CppAD::pow(vars[epsi_start + t], 2);
+		fg[0] += epsi_weight*CppAD::pow(vars[epsi_start + t], 2);
 		//velocity error
-		fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
+		fg[0] += speed_weight*CppAD::pow(vars[v_start + t] - ref_v, 2);
     }
 
     // Minimize the use of actuators - constrain erratic control inputs.
     for (int t = 0; t < N - 1; t++) {
 		//minimize wheel turn
-		fg[0] += CppAD::pow(vars[delta_start + t], 2);
+		fg[0] += steer_use_weight*CppAD::pow(vars[delta_start + t], 2);
 		// minimize acceleration
-		fg[0] += CppAD::pow(vars[a_start + t], 2);
+		fg[0] += a_use_weight*CppAD::pow(vars[a_start + t], 2);
+		// tradeoff speed vs steer
+		fg[0] += speed_vs_steer_weight*CppAD::pow(vars[delta_start + t] * vars[v_start+t], 2);
     }
 
     /* Minimize the value gap between sequential actuations.
@@ -71,9 +84,9 @@ class FG_eval {
 	*/
     for (int t = 0; t < N - 2; t++) {
 		//minimize wheel turn deltas
-		fg[0] += CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+		fg[0] += steer_change_weight*CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
 		// minimize acceleration deltas
-		fg[0] += CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
+		fg[0] += a_change_weight*CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
     }
 	
 	//initialize the model to the initial state (offset by 1 for cost)
@@ -105,8 +118,8 @@ class FG_eval {
 		AD<double> delta0 = vars[delta_start + t - 1];
 		AD<double> a0 = vars[a_start + t - 1];
 
-		AD<double> f0 = coeffs[0] + coeffs[1] * x0;
-		AD<double> psides0 = CppAD::atan(coeffs[1]);
+		AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
+		AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0, 2));
 
 		// Here's `x` to get you started.
 		// The idea here is to constraint this value to be 0.
@@ -120,7 +133,7 @@ class FG_eval {
 		// epsi[t] = psi[t] - psides[t-1] + v[t-1] * delta[t-1] / Lf * dt
 		fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
 		fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
-		fg[1 + psi_start + t] = psi1 - (psi0 + v0 * delta0 / Lf * dt);
+		fg[1 + psi_start + t] = psi1 - (psi0 - v0 * delta0 / Lf * dt);
 		fg[1 + v_start + t] = v1 - (v0 + a0 * dt);
 		fg[1 + cte_start + t] =
 		  cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
@@ -276,7 +289,20 @@ vector<double> MPC::Solve(Eigen::VectorXd x0, Eigen::VectorXd coeffs) {
 	//
 	// {...} is shorthand for creating a vector, so auto x1 = {1.0,2.0}
 	// creates a 2 element double vector.
-	return {solution.x[delta_start], solution.x[a_start], solution.x[x_start], 
+	
+	vector<double> result;
+
+	result.push_back(solution.x[delta_start]);
+	result.push_back(solution.x[a_start]);
+
+	for (int i = 0; i < N-1; i++) {
+	result.push_back(solution.x[x_start + i + 1]);
+	result.push_back(solution.x[y_start + i + 1]);
+	}
+
+	return result;
+	
+	/*return {solution.x[delta_start], solution.x[a_start], solution.x[x_start], 
 	solution.x[x_start+1] , solution.x[x_start+2] , solution.x[x_start+3] , solution.x[x_start+4], solution.x[y_start], 
-	solution.x[y_start+1] , solution.x[y_start+2] , solution.x[y_start+3] , solution.x[y_start+4]};
+	solution.x[y_start+1] , solution.x[y_start+2] , solution.x[y_start+3] , solution.x[y_start+4]};*/
 }

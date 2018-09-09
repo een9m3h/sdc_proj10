@@ -190,10 +190,12 @@ int main() {
 			//Display the MPC predicted trajectory 
 			vector<double> mpc_x_vals;
 			vector<double> mpc_y_vals;
+			
 
-			for (int i = 2; i <= 6; i++) {
+
+			for (int i = 2; i <= result.size(); i=i+2) {
 			  mpc_x_vals.push_back(result[i]);
-			  mpc_y_vals.push_back(result[i+5]);
+			  mpc_y_vals.push_back(result[i+1]);
 			}
 
 			//mapTransate(psi, mpc_x_vals, mpc_y_vals);
@@ -231,7 +233,7 @@ int main() {
 			//
 			// NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
 			// SUBMITTING.
-			this_thread::sleep_for(chrono::milliseconds(100));
+			this_thread::sleep_for(chrono::milliseconds(0));
 			ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
