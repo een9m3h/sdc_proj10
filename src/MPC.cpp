@@ -32,7 +32,7 @@ const double Lf = 2.67;
 
 // Both the reference cross track and orientation errors are 0.
 // The reference velocity is set to 40 mph.
-double ref_v = 5.0;
+double ref_v = 1.0;
 
 class FG_eval {
  public:
@@ -125,7 +125,7 @@ class FG_eval {
 		fg[1 + cte_start + t] =
 		  cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
 		fg[1 + epsi_start + t] =
-		  epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt);
+		  epsi1 - ((psi0 - psides0) - ((v0 * delta0) / Lf) * dt);
 	}
 	
   }

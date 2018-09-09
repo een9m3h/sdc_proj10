@@ -83,23 +83,26 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
   return result;
 }
 
-void mapTransate(double psi, vector<double> &ptsx, vector<double> &ptsy){
+void mapTransate(double px, double py, double psi, vector<double> &ptsx, vector<double> &ptsy){
 	
 	psi = -RangeAngle(psi);
 	
 	for(int i = ptsx.size()-1; i >= 0; i--){
 		
-		std::cout << "i: " << i << std::endl;
+		//std::cout << "old x: " << ptsx[i] << " y: " << ptsy[i] << std::endl;
+		
+		ptsx[i] -= px;
+		ptsy[i] -= py;
 		
 		///* transform to map x coordinate
-		ptsx[i] = (cos(psi) * ptsx[i]) - (sin(psi) * ptsy[i]);
+		double tmpx = (cos(psi) * ptsx[i]) - (sin(psi) * ptsy[i]);
 
 		///* transform to map y coordinate
-		ptsy[i] = (sin(psi) * ptsx[i]) + (cos(psi) * ptsy[i]);
+		double tmpy = (sin(psi) * ptsx[i]) + (cos(psi) * ptsy[i]);
 		
-		ptsx[i] -= ptsx[0];
-		ptsy[i] -= ptsy[0];
-		
+		//std::cout << "new x: " << ptsx[i] << " y: " << ptsy[i] << std::endl;
+		ptsx[i] = tmpx;
+		ptsy[i] = tmpy;
 	}
 }
 
@@ -122,115 +125,114 @@ int main() {
         auto j = json::parse(s);
         string event = j[0].get<string>();
         if (event == "telemetry") {
-          // j[1] is the data JSON object
-          vector<double> ptsx = j[1]["ptsx"];
-          vector<double> ptsy = j[1]["ptsy"];
-          double px = j[1]["x"];
-          double py = j[1]["y"];
-          double psi = j[1]["psi_unity"];
-          double v = j[1]["speed"];
-		  
-		  std::cout << "copy vecs" << std::endl;
-		  
-		  //mapTransate(px, py, psi, ptsx, ptsy);
-		  
-		  
-		  
-		  Eigen::VectorXd xvals = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(ptsx.data(), ptsx.size());
-		  Eigen::VectorXd yvals = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(ptsy.data(), ptsy.size());
+			// j[1] is the data JSON object
+			vector<double> ptsx = j[1]["ptsx"];
+			vector<double> ptsy = j[1]["ptsy"];
+			double px = j[1]["x"];
+			double py = j[1]["y"];
+			double psi = j[1]["psi"];
+			double v = j[1]["speed"];
+
+			std::cout << "copy vecs" << std::endl;
+
+			mapTransate(px, py, psi, ptsx, ptsy);
+
+			Eigen::VectorXd xvals = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(ptsx.data(), ptsx.size());
+			Eigen::VectorXd yvals = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(ptsy.data(), ptsy.size());
+
 		 
-		 
-		std::cout << "fit" << std::endl;
+			std::cout << "fit" << std::endl;
 		  
-		  // TODO: fit a polynomial to the above x and y coordinates
-		  auto coeffs = polyfit(xvals, yvals, 3);
+			// TODO: fit a polynomial to the above x and y coordinates
+			auto coeffs = polyfit(xvals, yvals, 3);
 		  
-		  /*for (double x = 0.0; x <= 20; x += 1.0) {
+			/*for (double x = 0.0; x <= 20; x += 1.0) {
 			  std::cout << "polyfit x: " << x << "y: " << polyeval(coeffs, x) << std::endl;
-		  }*/
+			}*/
 		  
-		  std::cout << "calc cte" << std::endl;
+			std::cout << "calc cte" << std::endl;
 		  
-		  // TODO: calculate the cross track error
-		  double cte = polyeval(coeffs, px) - py;
-		  // TODO: calculate the orientation error
-		  double epsi = RangeAngle(psi) - atan2(ptsx[1]-ptsx[0], coeffs[1]*(ptsx[1]-ptsx[0]));
+			// TODO: calculate the cross track error
+			double cte = polyeval(coeffs, 0); //px=0
+		  
+			// TODO: calculate the orientation error
+			double epsi = -atan(coeffs[1]);  // error normalized to rotated pts{x,y} vectors
 
-		  std::cout << "cte: " << cte << std::endl;
-		  std::cout << "orientation: " << atan2(ptsx[1]-ptsx[0], coeffs[1]*(ptsx[1]-ptsx[0])) << std::endl;
-		  std::cout << "RangeAngle(psi): " << RangeAngle(psi) << std::endl;
-		  std::cout << "epsi: " << epsi << std::endl;
+			std::cout << "cte: " << cte << std::endl;
+			std::cout << "orientation: " << atan2(ptsx[1]-ptsx[0], coeffs[1]*(ptsx[1]-ptsx[0])) << std::endl;
+			std::cout << "RangeAngle(psi): " << RangeAngle(psi) << std::endl;
+			std::cout << "epsi: " << epsi << std::endl;
 		  
-		  std::cout << "copy vect" << std::endl;
-		  Eigen::VectorXd x0(6); 
-		  x0 << px, py, psi, v, cte, epsi;
+			std::cout << "copy vect" << std::endl;
+			Eigen::VectorXd x0(6); 
+			x0 << 0, 0, 0, v, cte, epsi;  //px, py, psi all zero after map translate to car heading
 
-          /*
-          * TODO: Calculate steering angle and throttle using MPC.
-          *
-          * Both are in between [-1, 1].
-          *
-          */
-		  std::cout << "solve" << std::endl;
-		  vector<double> result(12);
-		  result = mpc.Solve(x0, coeffs);
-		  std::cout << "result" << std::endl;
+			/*
+			* TODO: Calculate steering angle and throttle using MPC.
+			*
+			* Both are in between [-1, 1].
+			*
+			*/
+			std::cout << "solve" << std::endl;
+			vector<double> result(12);
+			result = mpc.Solve(x0, coeffs);
+			std::cout << "result" << std::endl;
 		  
-          double steer_value 	= result[0];
-          double throttle_value = result[1];
+			double steer_value 		= result[0];
+			double throttle_value 	= result[1];
 
-          json msgJson;
-          // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
-          // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
-          msgJson["steering_angle"] = -steer_value/deg2rad(25);
-          msgJson["throttle"] = throttle_value;
+			json msgJson;
+			// NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
+			// Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
+			msgJson["steering_angle"] 	= steer_value/deg2rad(25);
+			msgJson["throttle"] 		= throttle_value;
 
-          //Display the MPC predicted trajectory 
-          vector<double> mpc_x_vals;
-          vector<double> mpc_y_vals;
-		  
-		  for (int i = 2; i <= 6; i++) {
+			//Display the MPC predicted trajectory 
+			vector<double> mpc_x_vals;
+			vector<double> mpc_y_vals;
+
+			for (int i = 2; i <= 6; i++) {
 			  mpc_x_vals.push_back(result[i]);
 			  mpc_y_vals.push_back(result[i+5]);
-		  }
-		  
-		  //mapTransate(psi, mpc_x_vals, mpc_y_vals);
+			}
 
-          //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
-          // the points in the simulator are connected by a Green line
+			//mapTransate(psi, mpc_x_vals, mpc_y_vals);
 
-          msgJson["mpc_x"] = mpc_x_vals;
-          msgJson["mpc_y"] = mpc_y_vals;
+			//.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
+			// the points in the simulator are connected by a Green line
 
-          //Display the waypoints/reference line
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
-		  
-		  for (double x = px; x <= 20; x += 5.0) {
+			msgJson["mpc_x"] = mpc_x_vals;
+			msgJson["mpc_y"] = mpc_y_vals;
+
+			//Display the waypoints/reference line
+			vector<double> next_x_vals;
+			vector<double> next_y_vals;
+
+			for (double x = 0.0; x <= 100; x += 5.0) {
 			  next_x_vals.push_back(x);
-			  next_y_vals.push_back(0);
-		  }
+			  next_y_vals.push_back(polyeval(coeffs, x));
+			}
 
-          //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
-          // the points in the simulator are connected by a Yellow line
+			//.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
+			// the points in the simulator are connected by a Yellow line
 
-          msgJson["next_x"] = next_x_vals;
-          msgJson["next_y"] = next_y_vals;
+			msgJson["next_x"] = next_x_vals;
+			msgJson["next_y"] = next_y_vals;
 
 
-          auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          std::cout << msg << std::endl;
-          // Latency
-          // The purpose is to mimic real driving conditions where
-          // the car does actuate the commands instantly.
-          //
-          // Feel free to play around with this value but should be to drive
-          // around the track with 100ms latency.
-          //
-          // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
-          // SUBMITTING.
-          this_thread::sleep_for(chrono::milliseconds(0));
-          ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+			auto msg = "42[\"steer\"," + msgJson.dump() + "]";
+			std::cout << msg << std::endl;
+			// Latency
+			// The purpose is to mimic real driving conditions where
+			// the car does actuate the commands instantly.
+			//
+			// Feel free to play around with this value but should be to drive
+			// around the track with 100ms latency.
+			//
+			// NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
+			// SUBMITTING.
+			this_thread::sleep_for(chrono::milliseconds(100));
+			ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
         // Manual driving
